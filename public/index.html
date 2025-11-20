@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Application</title>
+    <style>
+        /* Global Reset & Layout */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #e9ecef;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        /* Header styling */
+        h3 {
+            color: #495057;
+            margin: 0 0 10px 0;
+            width: 100%;
+            max-width: 600px;
+            font-size: 1.1rem;
+        }
+
+        /* User List Area - styled as a top bar */
+        #userList {
+            width: 100%;
+            max-width: 580px; /* accounting for padding */
+            background-color: #ffffff;
+            padding: 10px;
+            border-radius: 8px 8px 0 0;
+            border-bottom: 1px solid #dee2e6;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+        }
+
+        /* Styling the list items created by JS */
+        #userList li {
+            display: inline-block;
+            list-style: none;
+            background-color: #d1e7dd;
+            color: #0f5132;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.85rem;
+            margin-right: 5px;
+            margin-bottom: 5px;
+            font-weight: 600;
+        }
+        
+        /* Remove default ul padding/margin if present */
+        #users {
+            margin: 0;
+            padding: 0;
+        }
+
+        /* Main Chat Box */
+        #chat {
+            width: 100%;
+            max-width: 560px; /* accounting for padding */
+            height: 400px;
+            background-color: #ffffff;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            border-left: 1px solid #dee2e6;
+            border-right: 1px solid #dee2e6;
+        }
+
+        /* Individual Messages */
+        #chat div {
+            background-color: #f1f3f5;
+            padding: 10px 15px;
+            border-radius: 10px;
+            max-width: 80%;
+            align-self: flex-start;
+            line-height: 1.4;
+            color: #212529;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease;
+        }
+
+        /* Message Input Area */
+        #messageform {
+            width: 100%;
+            max-width: 600px;
+            display: flex;
+            margin-top: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+        }
+
+        #messageinput {
+            flex-grow: 1;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-top: none;
+            border-radius: 0 0 0 8px;
+            outline: none;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+
+        #messageinput:focus {
+            background-color: #fdfdfd;
+        }
+
+        button {
+            padding: 0 25px;
+            background-color: #0d6efd;
+            color: white;
+            border: none;
+            border-radius: 0 0 8px 0;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #0b5ed7;
+        }
+
+        /* Animation for new messages */
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Custom Scrollbar */
+        #chat::-webkit-scrollbar {
+            width: 8px;
+        }
+        #chat::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+        #chat::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+
+<body>
+    <h3>Online Users</h3>
+    <div id="userList">
+        <ul id="users"></ul>
+    </div>
+    <div id="chat"></div>
+    <form id="messageform">
+        <input id="messageinput" required placeholder="Enter your message...">
+        <button type="submit">Send</button>
+    </form>
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+
+        const socket = io();
+        const chat = document.getElementById('chat');
+        const userList = document.getElementById('userList');
+        const messageform = document.getElementById('messageform');
+        const messageinput = document.getElementById('messageinput');
+        let userName = "";
+        while (true) {
+            userName = prompt("Enter the Username");
+
+            // User clicked CANCEL → re-prompt
+            if (userName === null) continue;
+
+            // Trim spaces
+            userName = userName.trim();
+
+            // If not empty → valid
+            if (userName.length > 0) break;
+        }
+        // socket emit a join user 
+        socket.emit('user', userName);
+        // socket on that user is joined and send the div in the chat section
+        socket.on('userJoined', (user) => {
+            addMessage(`${user} has joined`);
+        });
+        //socket that when the user is left
+        socket.on('userLeft', (user) => {
+            addMessage(`${user} left`);
+        })
+
+        // socket on that give full users in online and send to the userList section
+        socket.on("UserList", (users) => {
+            userList.innerHTML = users.map((user) => `<li>${user}</li>`).join("");
+        });
+        // extract data from the form and button
+        messageform.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const extractData = messageinput.value.trim();
+            if (extractData) {
+                socket.emit('chatMessage', {
+                    userName, text: extractData
+                });
+            }
+            messageinput.value = "";
+        });
+        socket.on("chatMessage", (message) => {
+            addMessage(`${message.userName}: ${message.text}`);
+        });
+        function addMessage(input) {
+            const messageElement = document.createElement('div');
+            messageElement.textContent = input;
+            chat.appendChild(messageElement);
+
+            //scroll to the button of the chat 
+            chat.scrollTop = chat.scrollHeight;
+        }
+    </script>
+</body>
+
+</html>
